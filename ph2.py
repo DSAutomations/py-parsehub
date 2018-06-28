@@ -48,12 +48,13 @@ class ParseHub(object):
         Returns all project of a user
         :return: array of PhProject objects
         """
-        resp = self.conn.request('GET', self.URLS['allprojects'], dict(api_key=self.api_key))
+        resp = self.conn.request('GET', self.URLS['allprojects'], dict(api_key=self.api_key, include_options=1))
         data = resp.data.decode('utf-8')
         jdata = json.loads(data)['projects']
         # Convert nested JSON documents
         for project_index in range(len(jdata)):
-            jdata[project_index]['templates_json'] = json.loads(jdata[project_index]['templates_json'])
+            for field in ('options_json', 'templates_json'):
+                jdata[project_index][field] = json.loads(jdata[project_index][field])
         # Pass project details dictionaries to constructors, return array
         return [PhProject(self, project) for project in jdata]
 
@@ -90,6 +91,9 @@ class PhProject(object):
     templates_json 	The JSON-stringified representation of all the instructions for running this project. This
                     representation is not yet documented, but will eventually allow developers to create
                     plugins for ParseHub.
+    main_template 	The name of the template with which ParseHub should start executing the project.
+    main_site 	    The default URL at which ParseHub should start running the project.
+    options_json 	An object containing several advanced options for the project.
     last_run 	    The run object of the most recently started run (orderd by start_time) for the project.
     last_ready_run 	The run object of the most recent ready run (ordered by start_time) for the project. A ready run
                     is one whose data_ready attribute is truthy. The last_run and last_ready_run for a project may
@@ -98,10 +102,15 @@ class PhProject(object):
     def __init__(self, ph, arg_dict: dict):
         self.ph = ph
         self.runs = []
+        self.main_site = arg_dict['main_site']
+        self.main_template = arg_dict['main_template']
+        self.options_json = arg_dict['options_json']
+        self.output_type = arg_dict['output_type']
         self.syntax_version = arg_dict['syntax_version']
         self.templates_json = arg_dict['templates_json']
         self.title = arg_dict['title']
         self.token = arg_dict['token']
+        self.webhook = arg_dict['webhook']
         self.runs = self.get_runs(offset=0)
         self.last_run = PhRun(self.ph, arg_dict['last_run']) if arg_dict['last_run'] else None
         self.last_ready_run = PhRun(self.ph, arg_dict['last_ready_run']) if arg_dict['last_ready_run'] else None
@@ -183,7 +192,7 @@ class PhRun(object):
     md5sum 	        The md5sum of the results. This can be used to check if result data has changed between two runs.
     start_url 	    The url that this run was started on.
     start_value 	The starting value of the global scope for this run.
-    options_json 	An object containing several advanced options for the project.
+    options_json 	An object containing several advanced options for the run.
     """
     def __init__(self, ph, arg_dict: dict):
         self.ph = ph
